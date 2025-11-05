@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Online Quiz</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/theme.css">
+    <style>
+        .user-hero {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: .5rem;
+            margin-bottom: 1.5rem;
+        }
+        .user-hero-name {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+        }
+        .icon-btn {
+            border: none;
+            background: transparent;
+            padding: 0;
+            line-height: 0;
+            cursor: pointer;
+        }
+        .icon-btn img { width: 22px; height: 22px; }
+        .icon-btn:focus { outline: 2px solid #fff5; outline-offset: 2px; }
+
+        .avatar-64 { width: 64px; height: 64px; object-fit: cover; }
+        .center-wrap { min-height: calc(100vh - 56px); }
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark navbar-blur">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="/">Online Quiz</a>
+        <div class="navbar-nav ms-auto align-items-center gap-3">
+            <a class="nav-link" data-nav href="/main">Main</a>
+            <a class="nav-link" data-nav href="/room">Room</a>
+            <a class="nav-link" data-nav href="/test">Test</a>
+            <a class="nav-link" data-nav href="/result">Result</a>
+        </div>
+    </div>
+</nav>
+
+<main class="py-4">
+    <div class="center-wrap d-flex align-items-center">
+        <div class="container">
+
+            <!-- Centered user icon + username + edit PNG button -->
+            <div class="user-hero">
+                <img src="/assets/user.png" alt="User" class="avatar-64">
+                <div class="user-hero-name">
+                    <div id="mainUserName" class="h4 m-0">Guest</div>
+                    <button id="btnChangeName" class="icon-btn" aria-label="Change name" title="Change name">
+                        <img src="assets/edit.png" alt="">
+                    </button>
+                </div>
+            </div>
+
+            <div class="row g-4 justify-content-center align-items-stretch">
+                <!-- Create -->
+                <div class="col-12 col-lg-5 d-flex">
+                    <div class="card bg-panel flex-fill h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h2 class="card-title h4">Create a room</h2>
+                            <p class="text-secondary mb-1">Host a new game and share the code.</p>
+                            <small class="text-secondary">Player: <b id="helloName">Guest</b></small>
+                            <div class="mt-auto">
+                                <button id="btnCreate" class="btn btn-primary">Create Room</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Join -->
+                <div class="col-12 col-lg-5 d-flex">
+                    <div class="card bg-panel flex-fill h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h2 class="card-title h4">Join a room</h2>
+                            <p class="text-secondary">Enter the room code from the host.</p>
+                            <div class="mb-2">
+                                <label class="form-label">Room code</label>
+                                <input id="roomId" class="form-control" placeholder="e.g. K8P1ZQ">
+                            </div>
+                            <div class="mt-auto d-flex gap-2">
+                                <button id="btnJoin" class="btn btn-primary">Join</button>
+                                <!-- removed the old text Change Name button -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /.row -->
+        </div><!-- /.container -->
+    </div><!-- /.center-wrap -->
+</main>
+
+<!-- Username Modal -->
+<div class="modal fade" id="usernameModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="usernameLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-panel text-white">
+            <div class="modal-header border-0">
+                <h5 class="modal-title" id="usernameLabel">Enter your name</h5>
+            </div>
+            <div class="modal-body">
+                <label for="username" class="form-label">Username</label>
+                <input id="username" class="form-control" placeholder="e.g. Alex" maxlength="24">
+                <small class="text-secondary">We’ll show this to other players.</small>
+            </div>
+            <div class="modal-footer border-0">
+                <button id="saveUsername" type="button" class="btn btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/assets/ui.js"></script>
+<script>
+    // --- Username handling ---
+    const KEY = 'oq_username';
+
+    // Kept for compatibility if used elsewhere:
+    const userNameEl   = document.getElementById('userName');     // may be null
+    const helloNameEl  = document.getElementById('helloName');
+    const mainNameEl   = document.getElementById('mainUserName'); // centered name
+    const usernameInput = document.getElementById('username');    // in modal
+    const modalEl = document.getElementById('usernameModal');
+    const usernameModal = new bootstrap.Modal(modalEl);
+
+    function setUsername(name){
+        const clean = name.trim().replace(/\s+/g, ' ').slice(0,24);
+        if (!clean) return;
+        localStorage.setItem(KEY, clean);
+        if (userNameEl)  userNameEl.textContent = clean;
+        if (helloNameEl) helloNameEl.textContent = clean;
+        if (mainNameEl)  mainNameEl.textContent = clean;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const saved = localStorage.getItem(KEY);
+        if (saved && saved.trim()){
+            setUsername(saved);
+        } else {
+            usernameModal.show();
+            setTimeout(() => usernameInput?.focus(), 200);
+        }
+    });
+
+    document.getElementById('saveUsername').addEventListener('click', () => {
+        const name = usernameInput.value;
+        if (!name.trim()) { usernameInput.focus(); return; }
+        setUsername(name);
+        usernameModal.hide();
+    });
+
+    // PNG edit button next to username
+    document.getElementById('btnChangeName').addEventListener('click', () => {
+        usernameInput.value = localStorage.getItem(KEY) || '';
+        usernameModal.show();
+        setTimeout(() => usernameInput?.focus(), 200);
+    });
+
+    usernameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('saveUsername').click();
+    });
+
+    // --- Existing WS logic (unchanged) ---
+    const ws = new WebSocket(`ws://${location.host}`);
+
+    ws.addEventListener('message', ev => {
+        const m = JSON.parse(ev.data);
+        if (m.type === 'room_created') {
+            document.getElementById('roomId').value = m.roomId;
+            const toast = document.createElement('div');
+            toast.className = 'position-fixed bottom-0 end-0 p-3';
+            toast.innerHTML = `<div class="toast show bg-panel text-white">
+        <div class="toast-body">Room created: <b>${m.roomId}</b></div></div>`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2500);
+        }
+        if (m.type === 'joined') location.href = '/room';
+    });
+
+    document.getElementById('btnCreate')?.addEventListener('click', () => {
+        ws.send(JSON.stringify({ type: 'create_room' }));
+    });
+
+    const roomIdInput = document.getElementById('roomId');
+
+    document.getElementById('btnJoin')?.addEventListener('click', () => {
+        const roomId = roomIdInput.value.trim().toUpperCase();
+        const username = localStorage.getItem(KEY) || '';
+        if (!roomId) return alert('Enter room code');
+        const payload = { type: 'join_room', roomId };
+        if (username) payload.username = username;
+        ws.send(JSON.stringify(payload));
+    });
+</script>
+</body>
+</html>
