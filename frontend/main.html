@@ -5,56 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <title>Online Quiz</title>
     <link rel="icon" href="assets/images/favicons-quiz.png" type="image/png">
-
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/assets/theme.css">
-    <style>
-        .user-hero {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            gap: .5rem;
-            margin-bottom: 1.5rem;
-        }
-        .user-hero-name {
-            display: inline-flex;
-            align-items: center;
-            gap: .5rem;
-        }
-        .icon-btn {
-            border: none;
-            background: transparent;
-            padding: 0;
-            line-height: 0;
-            cursor: pointer;
-        }
-        .icon-btn img { width: 22px; height: 22px; }
-        .icon-btn:focus { outline: 2px solid #fff5; outline-offset: 2px; }
-
-        .avatar-64 { width: 64px; height: 64px; object-fit: cover; }
-        .center-wrap { min-height: calc(100vh - 56px); }
-    </style>
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark navbar-blur">
-    <div class="container">
-        <a class="navbar-brand fw-bold" href="/">Online Quiz</a>
-        <div class="navbar-nav ms-auto align-items-center gap-3">
-            <a class="nav-link" data-nav href="/main">Main</a>
-            <a class="nav-link" data-nav href="/room">Room</a>
-            <a class="nav-link" data-nav href="/test">Test</a>
-            <a class="nav-link" data-nav href="/result">Result</a>
-        </div>
-    </div>
-</nav>
 
 <main class="py-4">
     <div class="center-wrap d-flex align-items-center">
         <div class="container">
-
-            <!-- Centered user icon + username + edit PNG button -->
             <div class="user-hero">
                 <img src="/assets/images/user.png" alt="User" class="avatar-64">
                 <div class="user-hero-name">
@@ -88,11 +46,13 @@
                             <p class="text-secondary">Enter the room code from the host.</p>
                             <div class="mb-2">
                                 <label class="form-label">Room code</label>
-                                <input id="roomId" class="form-control" placeholder="e.g. K8P1ZQ">
+                                <input id="roomId" class="form-control" type="text" maxlength="6" placeholder="e.g. 998878" oninput="removeNonDigits(event)" />
+                                <div id="error-message" class="text-danger mt-2" style="display: none;">
+                                    Room code must be 6 digits.
+                                </div>
                             </div>
                             <div class="mt-auto d-flex gap-2">
                                 <button id="btnJoin" class="btn btn-primary">Join</button>
-                                <!-- removed the old text Change Name button -->
                             </div>
                         </div>
                     </div>
@@ -121,88 +81,98 @@
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/assets/ui.js"></script>
 <script>
-    // --- Username handling ---
-    const KEY = 'oq_username';
+    $(document).ready(function () {
+        const KEY = 'oq_username';
 
-    // Kept for compatibility if used elsewhere:
-    const userNameEl   = document.getElementById('userName');     // may be null
-    const helloNameEl  = document.getElementById('helloName');
-    const mainNameEl   = document.getElementById('mainUserName'); // centered name
-    const usernameInput = document.getElementById('username');    // in modal
-    const modalEl = document.getElementById('usernameModal');
-    const usernameModal = new bootstrap.Modal(modalEl);
+        function setUsername(name) {
+            const clean = name.trim().replace(/\s+/g, ' ').slice(0, 24);
+            if (!clean) return;
+            localStorage.setItem(KEY, clean);
+            $('#helloName').text(clean);
+            $('#mainUserName').text(clean);
+        }
 
-    function setUsername(name){
-        const clean = name.trim().replace(/\s+/g, ' ').slice(0,24);
-        if (!clean) return;
-        localStorage.setItem(KEY, clean);
-        if (userNameEl)  userNameEl.textContent = clean;
-        if (helloNameEl) helloNameEl.textContent = clean;
-        if (mainNameEl)  mainNameEl.textContent = clean;
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
         const saved = localStorage.getItem(KEY);
-        if (saved && saved.trim()){
+        if (saved && saved.trim()) {
             setUsername(saved);
         } else {
-            usernameModal.show();
-            setTimeout(() => usernameInput?.focus(), 200);
+            $('#usernameModal').modal('show');
+            $('#username').focus();
         }
+
+        $('#saveUsername').on('click', function () {
+            const name = $('#username').val().trim();
+            if (!name) { $('#username').focus(); return; }
+            setUsername(name);
+            $('#usernameModal').modal('hide');
+        });
+
+        $('#btnChangeName').on('click', function () {
+            $('#username').val(localStorage.getItem(KEY) || '');
+            $('#usernameModal').modal('show');
+            $('#username').focus();
+        });
+
+        // -------- Create room ----------
+        $('#btnCreate').on('click', function () {
+            const username = localStorage.getItem(KEY) || '';
+            if (!username) return alert("Please set a username");
+
+            $.ajax({
+                url: '/api/room/create',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ username }),
+                success: function (response) {
+                    // API returns { ok:true, roomCode, user:{...} }
+                    const roomId = response.roomCode;
+                    window.location.href = `/room.html?room_id=${roomId}`;
+                },
+                error: function (xhr) {
+                    alert((xhr.responseJSON && xhr.responseJSON.error) || 'Error creating room');
+                }
+            });
+        });
+
+        // -------- Join room ----------
+        $('#btnJoin').on('click', async function () {
+            const code = ($('#roomId').val() || '').trim();
+            const username = (localStorage.getItem(KEY) || '').trim();
+            if (!/^\d{6}$/.test(code)) { $('#error-message').text('Enter 6 digits').show(); return; }
+            if (!username) { $('#error-message').text('Set a username first').show(); return; }
+            $('#error-message').hide();
+
+            try {
+                const r = await fetch('/api/room/join', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ roomCode: code, username })
+                });
+                const data = await r.json();
+                if (!r.ok || !data.ok) throw new Error(data.error || 'Join failed');
+
+                // Whether created or already existed, go to room page.
+                window.location.href = `/room.html?room_id=${code}`;
+            } catch (e) {
+                $('#error-message').text(e.message).show();
+            }
+        });
+
+        // Enter submits Join
+        $('#roomId').on('keydown', function (e) {
+            if (e.key === 'Enter') $('#btnJoin').click();
+        });
     });
 
-    document.getElementById('saveUsername').addEventListener('click', () => {
-        const name = usernameInput.value;
-        if (!name.trim()) { usernameInput.focus(); return; }
-        setUsername(name);
-        usernameModal.hide();
-    });
-
-    // PNG edit button next to username
-    document.getElementById('btnChangeName').addEventListener('click', () => {
-        usernameInput.value = localStorage.getItem(KEY) || '';
-        usernameModal.show();
-        setTimeout(() => usernameInput?.focus(), 200);
-    });
-
-    usernameInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') document.getElementById('saveUsername').click();
-    });
-
-    // --- Existing WS logic (unchanged) ---
-    const ws = new WebSocket(`ws://${location.host}`);
-
-    ws.addEventListener('message', ev => {
-        const m = JSON.parse(ev.data);
-        if (m.type === 'room_created') {
-            document.getElementById('roomId').value = m.roomId;
-            const toast = document.createElement('div');
-            toast.className = 'position-fixed bottom-0 end-0 p-3';
-            toast.innerHTML = `<div class="toast show bg-panel text-white">
-        <div class="toast-body">Room created: <b>${m.roomId}</b></div></div>`;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 2500);
-        }
-        if (m.type === 'joined') location.href = '/room';
-    });
-
-    document.getElementById('btnCreate')?.addEventListener('click', () => {
-        ws.send(JSON.stringify({ type: 'create_room' }));
-    });
-
-    const roomIdInput = document.getElementById('roomId');
-
-    document.getElementById('btnJoin')?.addEventListener('click', () => {
-        const roomId = roomIdInput.value.trim().toUpperCase();
-        const username = localStorage.getItem(KEY) || '';
-        if (!roomId) return alert('Enter room code');
-        const payload = { type: 'join_room', roomId };
-        if (username) payload.username = username;
-        ws.send(JSON.stringify(payload));
-    });
+    // Strip non-digits while typing
+    function removeNonDigits(event) {
+        const input = event.target;
+        input.value = input.value.replace(/\D/g, '');
+    }
 </script>
+
 </body>
 </html>

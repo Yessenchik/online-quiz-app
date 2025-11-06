@@ -1,58 +1,117 @@
 <!doctype html>
 <html lang="en">
 <head>
-    <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>Room · Online Quiz</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Room</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/assets/theme.css">
+    <style>
+        :root { --pink:#ff3da2; }
+        body.bg-panel { min-height: 100vh; }
+        #usersRow { overflow-x:auto; white-space:nowrap; }
+        .user-pill{
+            display:inline-flex; align-items:center; gap:.5rem;
+            padding:.5rem .75rem; border-radius:1rem;
+            background:rgba(255,255,255,.06); margin-right:.5rem;
+            border:2px solid transparent; transition:border-color .15s ease;
+        }
+        .user-pill.ready{ border-color:var(--pink); }
+        .user-pill .avatar-32{
+            width:32px;height:32px;border-radius:.5rem;
+            display:inline-flex;align-items:center;justify-content:center;
+            background:var(--pink); font-weight:600;
+        }
+    </style>
 </head>
-<body>
-<nav class="navbar navbar-dark navbar-blur">
-    <div class="container">
-        <a class="navbar-brand fw-bold" href="/">Online Quiz</a>
-        <div class="navbar-nav ms-auto">
-            <a class="nav-link" data-nav href="/main">Main</a>
-            <a class="nav-link" data-nav href="/room">Room</a>
-            <a class="nav-link" data-nav href="/test">Test</a>
-            <a class="nav-link" data-nav href="/result">Result</a>
-        </div>
-    </div>
-</nav>
+<body class="bg-panel text-white">
+<main class="container py-5">
+    <div class="row g-4 align-items-start">
+        <!-- LEFT: full-width users row -->
+        <div class="col-12 col-lg-8">
+            <h2 id="roomTitle" class="mb-2">Room</h2>
 
-<main class="py-4">
-    <div class="container">
-        <div class="card bg-panel">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h2 class="h4 m-0">Room</h2>
-                    <button id="btnStart" class="btn btn-primary">Start quiz</button>
-                </div>
-                <ul id="users" class="list-group list-group-flush"></ul>
+            <!-- ↓ your new “share” text directly under the room code -->
+            <div id="shareLine" class="text-secondary mb-3">
+                Share this code with friends to join.
+            </div>
+
+            <div id="usersRow" class="p-3 rounded-4" style="background: rgba(255,255,255,.04);"></div>
+        </div>
+
+        <!-- RIGHT: Ready button under the share text (for narrow screens it sits after title+share) -->
+        <div class="col-12 col-lg-4">
+            <div class="d-flex flex-column align-items-start gap-3">
+                <button id="readyButton" class="btn btn-primary rounded-pill px-4">Ready</button>
+                <div class="text-secondary small">Everyone sees a pink border when you’re ready.</div>
             </div>
         </div>
     </div>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/assets/ui.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
 <script>
-    const ws = new WebSocket(`ws://${location.host}`);
-    const usersEl = document.getElementById('users');
+    $(function () {
+        const params = new URLSearchParams(location.search);
+        const roomId = params.get('room_id') || '';
+        const username = (localStorage.getItem('oq_username') || 'Guest').trim() || 'Guest';
 
-    ws.addEventListener('message', ev => {
-        const m = JSON.parse(ev.data);
-        if (m.type === 'joined' || m.type === 'user_joined' || m.type === 'score_update' || m.type === 'user_left') {
-            const users = m.users || [];
-            usersEl.innerHTML = users.map(u => `
-          <li class="list-group-item bg-transparent d-flex justify-content-between">
-            <span>${u.username}</span><span class="badge text-bg-primary">${u.score}</span>
-          </li>`).join('');
+        $('title').text(`Room ${roomId}`);
+        $('#roomTitle').text(`Room code: ${roomId}`);
+
+        // connect WS
+        const ws = new WebSocket(`ws://${location.host}`);
+
+        ws.addEventListener('open', () => {
+            ws.send(JSON.stringify({ type: 'join_room', roomId, username }));
+        });
+
+        function renderUsers(users) {
+            const box = $('#usersRow').empty();
+            users.forEach(u => {
+                const name = (u.username || 'Player').trim();
+                const initial = name ? name[0].toUpperCase() : '?';
+                const pill = $(`
+          <span class="user-pill">
+            <span class="avatar-32">${initial}</span>
+            <span class="small">${name}</span>
+          </span>
+        `);
+                if (u.ready) pill.addClass('ready');
+                box.append(pill);
+            });
         }
-        if (m.type === 'quiz_started') location.href = '/test';
-    });
 
-    document.getElementById('btnStart')?.addEventListener('click', () => {
-        ws.send(JSON.stringify({ type: 'start_quiz' }));
+        function handleState(msg){
+            // msg.users is an array of {id, username, ready}
+            renderUsers(msg.users || []);
+        }
+
+        ws.addEventListener('message', (ev) => {
+            try {
+                const m = JSON.parse(ev.data);
+                // unified state message
+                if (m.type === 'state') return handleState(m);
+
+                // backward compatible with previous messages
+                if (['joined','user_left','ready_update','score_update'].includes(m.type)) {
+                    return handleState(m);
+                }
+                if (m.type === 'error') console.error('WS error:', m.error);
+            } catch {}
+        });
+
+        let isReady = false;
+        $('#readyButton').on('click', () => {
+            isReady = !isReady;
+            $('#readyButton')
+                .text(isReady ? 'Cancel' : 'Ready')
+                .toggleClass('btn-danger', isReady)
+                .toggleClass('btn-primary', !isReady);
+            ws.send(JSON.stringify({ type: 'ready_toggle', roomId, ready: isReady }));
+        });
+
+        window.addEventListener('beforeunload', () => ws.close());
     });
 </script>
 </body>

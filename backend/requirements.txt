@@ -1,1 +1,1 @@
-npm install express ws pg dotenv nodemon
+npm install express ws pg dotenv nodemon winston

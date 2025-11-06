@@ -57,7 +57,7 @@
 }
 
 .btn-primary:hover {
-    background-color: #ff2b96 !important; /* Darker pink on hover */
+    background-color: #ff2b96 !important;
     border-color: #ff2b96 !important;
 }
 
@@ -76,10 +76,6 @@
 
 .text-white {
     color: #ffffff !important;
-}
-
-.modal-content.bg-panel {
-    border-radius: var(--bs-border-radius-lg);
 }
 
 .user-hero {
@@ -124,4 +120,44 @@
 
 .center-wrap {
     min-height: calc(100vh - 56px);
+}
+
+/* Toast message styles */
+.toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    max-width: 300px;
+    z-index: 1050;
+    padding: 10px;
+    border-radius: var(--bs-border-radius);
+    background: var(--bs-primary);
+    color: #fff;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    animation: fadeInOut 3s forwards;
+}
+
+.toast-body {
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 10px;
+}
+
+@keyframes fadeInOut {
+    0% {
+        opacity: 0;
+        transform: translateX(10px);
+    }
+    10% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    90% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    100% {
+        opacity: 0;
+        transform: translateX(10px);
+    }
 }
